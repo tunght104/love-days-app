@@ -31,28 +31,39 @@ export async function registerUser(username: string, password: string, displayNa
     return { user: demoUser, error: null };
   }
 
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        username: cleanUsername,
-        display_name: displayName || cleanUsername,
-        avatar_url: avatarId,
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          username: cleanUsername,
+          display_name: displayName || cleanUsername,
+          avatar_url: avatarId,
+        },
       },
-    },
-  });
+    });
 
-  if (error) return { user: null, error: error.message };
+    if (error) return { user: null, error: error.message };
 
-  const userProfile: UserProfile = {
-    id: data.user?.id || '',
-    username: cleanUsername,
-    display_name: displayName || cleanUsername,
-    avatar_url: avatarId,
-  };
+    const userProfile: UserProfile = {
+      id: data.user?.id || '',
+      username: cleanUsername,
+      display_name: displayName || cleanUsername,
+      avatar_url: avatarId,
+    };
 
-  return { user: userProfile, error: null };
+    return { user: userProfile, error: null };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes('Failed to fetch') || message.includes('fetch')) {
+      return {
+        user: null,
+        error: 'Không thể kết nối đến máy chủ Supabase. Hãy kiểm tra xem Project URL có đang hoạt động trên Supabase không.',
+      };
+    }
+    return { user: null, error: message };
+  }
 }
 
 // 2. Đăng nhập tài khoản
@@ -78,28 +89,39 @@ export async function loginUser(username: string, password: string) {
     }
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-  if (error) return { user: null, error: error.message };
+    if (error) return { user: null, error: error.message };
 
-  // Lấy profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', data.user.id)
-    .single();
+    // Lấy profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
 
-  const userProfile: UserProfile = {
-    id: data.user.id,
-    username: profile?.username || cleanUsername,
-    display_name: profile?.display_name || cleanUsername,
-    avatar_url: profile?.avatar_url || 'boy-1',
-  };
+    const userProfile: UserProfile = {
+      id: data.user.id,
+      username: profile?.username || cleanUsername,
+      display_name: profile?.display_name || cleanUsername,
+      avatar_url: profile?.avatar_url || 'boy-1',
+    };
 
-  return { user: userProfile, error: null };
+    return { user: userProfile, error: null };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes('Failed to fetch') || message.includes('fetch')) {
+      return {
+        user: null,
+        error: 'Không thể kết nối đến máy chủ Supabase. Hãy kiểm tra lại Project URL của dự án.',
+      };
+    }
+    return { user: null, error: message };
+  }
 }
 
 // 3. Lấy User hiện tại

@@ -1,19 +1,30 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const rawUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim().replace(/^["']|["']$/g, '');
+const rawKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim().replace(/^["']|["']$/g, '');
+
+const isValidHttpUrl = (urlString: string): boolean => {
+  if (!urlString) return false;
+  try {
+    const parsed = new URL(urlString);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
 
 export const isSupabaseConfigured = (): boolean => {
   return (
-    !!supabaseUrl &&
-    !!supabaseAnonKey &&
-    !supabaseUrl.includes('placeholder-love-app') &&
-    !supabaseAnonKey.includes('placeholder-anon-key')
+    isValidHttpUrl(rawUrl) &&
+    !!rawKey &&
+    !rawUrl.includes('placeholder') &&
+    !rawKey.includes('placeholder')
   );
 };
 
-// Khởi tạo Supabase client chuẩn
-export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder'
-);
+const supabaseUrl = isValidHttpUrl(rawUrl) ? rawUrl : 'https://placeholder.supabase.co';
+const supabaseAnonKey = rawKey || 'placeholder';
+
+// Khởi tạo Supabase client an toàn
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
