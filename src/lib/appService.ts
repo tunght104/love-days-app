@@ -1,9 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabaseClient';
-import { Room, UserProfile, RoomHeart } from '@/types';
-
-const DEMO_USER_KEY = 'love_app_demo_user';
-const DEMO_ROOM_KEY = 'love_app_demo_room';
-const DEMO_ALL_ROOMS_KEY = 'love_app_demo_all_rooms';
+import { Room, UserProfile } from '@/types';
 
 // Helper biến đổi username thành email nội bộ của Supabase Auth
 export function formatUsernameToEmail(username: string): string {
@@ -17,18 +13,10 @@ export async function registerUser(username: string, password: string, displayNa
   const email = formatUsernameToEmail(cleanUsername);
 
   if (!isSupabaseConfigured()) {
-    // Demo mode lưu vào LocalStorage
-    const demoUser: UserProfile = {
-      id: 'demo-user-' + Math.random().toString(36).substring(2, 8),
-      username: cleanUsername,
-      display_name: displayName || cleanUsername,
-      avatar_url: avatarId,
-      created_at: new Date().toISOString(),
+    return {
+      user: null,
+      error: 'Chưa cấu hình Supabase. Vui lòng kiểm tra biến môi trường NEXT_PUBLIC_SUPABASE_URL và NEXT_PUBLIC_SUPABASE_ANON_KEY.',
     };
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(DEMO_USER_KEY, JSON.stringify(demoUser));
-    }
-    return { user: demoUser, error: null };
   }
 
   try {
@@ -44,10 +32,19 @@ export async function registerUser(username: string, password: string, displayNa
       },
     });
 
-    if (error) return { user: null, error: error.message };
+    if (error) {
+      if (error.message.includes('already registered') || error.message.includes('already exists')) {
+        return { user: null, error: 'Tên tài khoản này đã tồn tại. Vui lòng chọn tên khác hoặc chuyển sang Đăng Nhập!' };
+      }
+      return { user: null, error: error.message };
+    }
+
+    if (!data.user) {
+      return { user: null, error: 'Không thể tạo tài khoản, vui lòng thử lại.' };
+    }
 
     const userProfile: UserProfile = {
-      id: data.user?.id || '',
+      id: data.user.id,
       username: cleanUsername,
       display_name: displayName || cleanUsername,
       avatar_url: avatarId,
@@ -59,7 +56,7 @@ export async function registerUser(username: string, password: string, displayNa
     if (message.includes('Failed to fetch') || message.includes('fetch')) {
       return {
         user: null,
-        error: 'Không thể kết nối đến máy chủ Supabase. Hãy kiểm tra xem Project URL có đang hoạt động trên Supabase không.',
+        error: 'Không thể kết nối đến máy chủ Supabase. Hãy kiểm tra lại kết nối mạng hoặc Project URL.',
       };
     }
     return { user: null, error: message };
@@ -72,21 +69,10 @@ export async function loginUser(username: string, password: string) {
   const email = formatUsernameToEmail(cleanUsername);
 
   if (!isSupabaseConfigured()) {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(DEMO_USER_KEY);
-      if (stored) {
-        return { user: JSON.parse(stored) as UserProfile, error: null };
-      }
-      // Tạo user demo nhanh
-      const demoUser: UserProfile = {
-        id: 'demo-user-1',
-        username: cleanUsername,
-        display_name: cleanUsername,
-        avatar_url: 'boy-1',
-      };
-      localStorage.setItem(DEMO_USER_KEY, JSON.stringify(demoUser));
-      return { user: demoUser, error: null };
-    }
+    return {
+      user: null,
+      error: 'Chưa cấu hình Supabase. Vui lòng kiểm tra biến môi trường NEXT_PUBLIC_SUPABASE_URL và NEXT_PUBLIC_SUPABASE_ANON_KEY.',
+    };
   }
 
   try {
@@ -95,20 +81,29 @@ export async function loginUser(username: string, password: string) {
       password,
     });
 
-    if (error) return { user: null, error: error.message };
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
+        return { user: null, error: 'Sai tên tài khoản hoặc mật khẩu!' };
+      }
+      return { user: null, error: error.message };
+    }
 
-    // Lấy profile
+    if (!data.user) {
+      return { user: null, error: 'Đăng nhập không thành công.' };
+    }
+
+    // Lấy profile từ Supabase
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', data.user.id)
-      .single();
+      .maybeSingle();
 
     const userProfile: UserProfile = {
       id: data.user.id,
-      username: profile?.username || cleanUsername,
-      display_name: profile?.display_name || cleanUsername,
-      avatar_url: profile?.avatar_url || 'boy-1',
+      username: profile?.username || data.user.user_metadata?.username || cleanUsername,
+      display_name: profile?.display_name || data.user.user_metadata?.display_name || cleanUsername,
+      avatar_url: profile?.avatar_url || data.user.user_metadata?.avatar_url || 'boy-1',
     };
 
     return { user: userProfile, error: null };
@@ -127,35 +122,32 @@ export async function loginUser(username: string, password: string) {
 // 3. Lấy User hiện tại
 export async function getCurrentUser(): Promise<UserProfile | null> {
   if (!isSupabaseConfigured()) {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(DEMO_USER_KEY);
-      return stored ? JSON.parse(stored) : null;
-    }
     return null;
   }
 
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return null;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return null;
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', session.user.id)
-    .single();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .maybeSingle();
 
-  return {
-    id: session.user.id,
-    username: profile?.username || session.user.email?.split('@')[0] || 'User',
-    display_name: profile?.display_name || profile?.username || 'User',
-    avatar_url: profile?.avatar_url || 'boy-1',
-  };
+    return {
+      id: session.user.id,
+      username: profile?.username || session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'User',
+      display_name: profile?.display_name || session.user.user_metadata?.display_name || profile?.username || 'User',
+      avatar_url: profile?.avatar_url || session.user.user_metadata?.avatar_url || 'boy-1',
+    };
+  } catch {
+    return null;
+  }
 }
 
 // 4. Đăng xuất
 export async function logoutUser() {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem(DEMO_USER_KEY);
-  }
   if (isSupabaseConfigured()) {
     await supabase.auth.signOut();
   }
@@ -174,28 +166,7 @@ export async function createRoom(
   const cleanCode = code.trim().toUpperCase();
 
   if (!isSupabaseConfigured()) {
-    const newRoom: Room = {
-      id: 'demo-room-' + Math.random().toString(36).substring(2, 9),
-      code: cleanCode,
-      start_date: startDate,
-      love_quote: loveQuote,
-      creator_id: userId,
-      partner_id: null,
-      creator_nickname: creatorNickname || 'Anh',
-      partner_nickname: partnerNickname || 'Em',
-      creator_avatar: creatorAvatar || 'boy-1',
-      partner_avatar: 'girl-1',
-      bg_theme: 'rose-gradient',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(DEMO_ROOM_KEY, JSON.stringify(newRoom));
-      const allRooms = JSON.parse(localStorage.getItem(DEMO_ALL_ROOMS_KEY) || '{}');
-      allRooms[cleanCode] = newRoom;
-      localStorage.setItem(DEMO_ALL_ROOMS_KEY, JSON.stringify(allRooms));
-    }
-    return { room: newRoom, error: null };
+    return { room: null, error: 'Chưa cấu hình kết nối Supabase.' };
   }
 
   const { data, error } = await supabase
@@ -229,35 +200,7 @@ export async function joinRoom(
   const cleanCode = code.trim().toUpperCase();
 
   if (!isSupabaseConfigured()) {
-    if (typeof window !== 'undefined') {
-      const allRooms = JSON.parse(localStorage.getItem(DEMO_ALL_ROOMS_KEY) || '{}');
-      let room = allRooms[cleanCode];
-      if (!room) {
-        const activeRoomStr = localStorage.getItem(DEMO_ROOM_KEY);
-        if (activeRoomStr) {
-          const activeRoom = JSON.parse(activeRoomStr);
-          if (activeRoom.code === cleanCode) room = activeRoom;
-        }
-      }
-
-      if (!room) {
-        return { room: null, error: 'Không tìm thấy phòng với mã này. Hãy kiểm tra lại nhé!' };
-      }
-
-      if (room.partner_id && room.partner_id !== userId && room.creator_id !== userId) {
-        return { room: null, error: 'Phòng này đã đủ 2 người rồi!' };
-      }
-
-      room.partner_id = userId;
-      if (partnerNickname) room.partner_nickname = partnerNickname;
-      if (partnerAvatar) room.partner_avatar = partnerAvatar;
-      room.updated_at = new Date().toISOString();
-
-      localStorage.setItem(DEMO_ROOM_KEY, JSON.stringify(room));
-      allRooms[cleanCode] = room;
-      localStorage.setItem(DEMO_ALL_ROOMS_KEY, JSON.stringify(allRooms));
-      return { room, error: null };
-    }
+    return { room: null, error: 'Chưa cấu hình kết nối Supabase.' };
   }
 
   // Supabase
@@ -265,7 +208,7 @@ export async function joinRoom(
     .from('rooms')
     .select('*')
     .eq('code', cleanCode)
-    .single();
+    .maybeSingle();
 
   if (fetchErr || !existingRoom) {
     return { room: null, error: 'Không tìm thấy phòng với mã này! Hãy kiểm tra lại.' };
@@ -298,10 +241,6 @@ export async function joinRoom(
 // 7. Lấy phòng của user
 export async function getUserRoom(userId: string): Promise<Room | null> {
   if (!isSupabaseConfigured()) {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(DEMO_ROOM_KEY);
-      return stored ? JSON.parse(stored) : null;
-    }
     return null;
   }
 
@@ -322,18 +261,7 @@ export async function updateRoomDetails(
   updates: Partial<Pick<Room, 'start_date' | 'love_quote' | 'creator_nickname' | 'partner_nickname' | 'creator_avatar' | 'partner_avatar'>>
 ) {
   if (!isSupabaseConfigured()) {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(DEMO_ROOM_KEY);
-      if (stored) {
-        const room = JSON.parse(stored);
-        const updated = { ...room, ...updates, updated_at: new Date().toISOString() };
-        localStorage.setItem(DEMO_ROOM_KEY, JSON.stringify(updated));
-        const allRooms = JSON.parse(localStorage.getItem(DEMO_ALL_ROOMS_KEY) || '{}');
-        allRooms[room.code] = updated;
-        localStorage.setItem(DEMO_ALL_ROOMS_KEY, JSON.stringify(allRooms));
-        return { room: updated, error: null };
-      }
-    }
+    return { room: null, error: 'Chưa cấu hình kết nối Supabase.' };
   }
 
   const { data, error } = await supabase
@@ -350,7 +278,7 @@ export async function updateRoomDetails(
 // 9. Gửi tim tương tác
 export async function sendHeart(roomId: string, senderId: string, senderName: string, message: string = '❤️') {
   if (!isSupabaseConfigured()) {
-    return { success: true };
+    return { success: false };
   }
 
   const { error } = await supabase.from('room_hearts').insert([
@@ -364,3 +292,4 @@ export async function sendHeart(roomId: string, senderId: string, senderName: st
 
   return { success: !error };
 }
+
