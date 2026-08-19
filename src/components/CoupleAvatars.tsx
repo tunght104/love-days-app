@@ -44,14 +44,14 @@ export default function CoupleAvatars({
       </div>
 
       {/* Center Animated Heart Line */}
-      <div className="flex flex-col items-center justify-center relative">
-        <div className="relative flex items-center justify-center">
-          <div className="w-12 sm:w-16 h-1 bg-gradient-to-r from-pink-300 via-rose-400 to-pink-300 rounded-full" />
-          <div className="absolute w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 shadow-md shadow-rose-300 flex items-center justify-center border border-pink-200 animate-heartbeat">
-            <Heart className="w-5 h-5 sm:w-6 sm:h-6 text-rose-500 fill-rose-500" />
+      <div className="relative flex w-20 shrink-0 flex-col items-center">
+        <div className="relative flex h-10 w-full items-center justify-center sm:h-12">
+          <div className="h-1 w-12 rounded-full bg-gradient-to-r from-pink-300 via-rose-400 to-pink-300 sm:w-16" />
+          <div className="absolute inset-0 m-auto flex h-10 w-10 items-center justify-center rounded-full border border-pink-200 bg-white/90 shadow-md shadow-rose-300 animate-heartbeat sm:h-12 sm:w-12">
+            <Heart className="h-5 w-5 fill-rose-500 text-rose-500 sm:h-6 sm:w-6" />
           </div>
         </div>
-        <span className="text-[11px] font-semibold text-rose-400 uppercase tracking-widest mt-3">
+        <span className="mt-3 w-full text-center text-[11px] font-semibold uppercase leading-tight tracking-widest text-rose-400">
           Love Forever
         </span>
       </div>
