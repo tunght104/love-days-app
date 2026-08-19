@@ -25,7 +25,7 @@ export default function CoupleAvatars({
   const pAvatar = getAvatarById(partnerAvatar);
 
   return (
-    <div className="relative flex items-center justify-center gap-4 sm:gap-8 my-4 py-2">
+    <div className="relative flex items-start justify-center gap-4 sm:gap-8 my-4 py-2">
       {/* Creator Card */}
       <div className="flex flex-col items-center group transition-transform duration-300 hover:scale-105">
         <div className="relative">
@@ -38,7 +38,7 @@ export default function CoupleAvatars({
             YOU
           </div>
         </div>
-        <span className="mt-2 text-base sm:text-lg font-bold text-gray-800 max-w-[100px] truncate text-center">
+        <span className="mt-2 text-base sm:text-lg font-bold text-gray-800 max-w-[100px] sm:max-w-[120px] text-center break-words leading-snug">
           {creatorNickname || 'Anh'}
         </span>
       </div>
@@ -69,7 +69,7 @@ export default function CoupleAvatars({
               LOVER
             </div>
           </div>
-          <span className="mt-2 text-base sm:text-lg font-bold text-gray-800 max-w-[100px] truncate text-center">
+          <span className="mt-2 text-base sm:text-lg font-bold text-gray-800 max-w-[100px] sm:max-w-[120px] text-center break-words leading-snug">
             {partnerNickname || 'Em'}
           </span>
         </div>
